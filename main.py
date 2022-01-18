@@ -1,12 +1,14 @@
-import string
-
-from flask import Flask, request, Response
-from dotenv import load_dotenv
+import slack
 import os
 from pathlib import Path
-import slack
+from dotenv import load_dotenv
+from flask import Flask, request, Response
 from slackeventsapi import SlackEventAdapter
 import string
+from datetime import datetime, timedelta
+
+
+load_dotenv()
 
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -22,6 +24,13 @@ message_counts = {}
 welcome_messages = {}
 
 BAD_WORDS = ['no', 'too bad', 'old']
+
+SCHEDULED_MESSAGES = [
+    {'text': 'First message', 'post_at': (
+            datetime.now() + timedelta(seconds=10)).timestamp(), 'channel': "C02TVH12RR9"},
+    {'text': 'Second Message!', 'post_at': (
+            datetime.now() + timedelta(seconds=50)).timestamp(), 'channel': "C02TVH12RR9"}
+]
 
 
 class WelcomeMessage:
@@ -83,6 +92,18 @@ def send_welcome_message(channel, user):
     welcome_messages[channel][user] = welcome
 
 
+def schedule_messages(messages):
+    ids = []
+    for msg in messages:
+        response = client.chat_scheduleMessage(
+            channel=msg['channel'], text=msg['text'], post_at=msg['post_at']).data
+
+        id_ = response.get('scheduled_message_id')
+        ids.append(id_)
+
+    return ids
+
+
 def check_if_bad_words(message):
     msg = message.lower()
     msg = msg.translate(str.maketrans('', '', string.punctuation))
@@ -136,9 +157,10 @@ def message_count():
     message_count = message_counts.get(user_id, 0)
 
     client.chat_postMessage(
-        channel=channel_id, text=f'Message: {message_count}')
+        channel=channel_id, text=f"Message: {message_count}")
     return Response(), 200
 
 
 if __name__ == "__main__":
     app.run(debug=True)
+    schedule_messages(SCHEDULED_MESSAGES)
